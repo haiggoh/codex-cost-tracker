@@ -47,14 +47,17 @@ def price(usage, model):
             u['cache_write_input_tokens'] * w + u['output_tokens'] * o) / 1_000_000
 
 
-def build_report(home, date=None, tz='UTC', session=None, tier='auto', budget=None):
+def build_report(home, date=None, tz='UTC', session=None, tier='auto', budget=None,
+                 account_spend=None, account_window=None):
     zone = ZoneInfo(tz)
     result = dict(version=VERSION, generated_at=datetime.now(timezone.utc).isoformat(),
                   period=date or 'all time', timezone=tz, scope='local Codex transcripts only',
                   cost_kind='estimated model tokens; excludes separately billed tools and taxes',
                   pricing_verified=PRICING_DATE, pricing_source=PRICING_URL,
                   tier=tier, standard_usd=0.0, fast_usd=0.0, estimated_usd=0.0,
-                  actual_charged_usd=None, account_credit_balance_usd=None,
+                  actual_charged_usd=account_spend, actual_charged_window=account_window,
+                  actual_charged_source=('user-reported OpenAI Usage dashboard' if account_spend is not None else None),
+                  account_credit_balance_usd=None,
                   priced_responses=0, unpriced_responses=0, sessions=[], warnings=[], budget=None)
     seen_sessions = set()
     paths = sorted({p.resolve() for folder in ('sessions', 'archived_sessions')
@@ -167,6 +170,10 @@ def build_report(home, date=None, tz='UTC', session=None, tier='auto', budget=No
         elif result['estimated_usd'] is not None:
             result['estimated_usd'] += row['estimated_usd']
         result['warnings'].extend(f"{row['session_id']}: {w}" for w in row['warnings'])
+    if account_spend is not None and (not math.isfinite(account_spend) or account_spend < 0):
+        raise ValueError('account spend must be a finite non-negative number')
+    if account_spend is not None and not account_window:
+        raise ValueError('account window is required with account spend')
     if session and session not in seen_sessions:
         result['warnings'].append('Requested session not found')
     if not paths:
@@ -189,6 +196,8 @@ def main():
     parser.add_argument('--session', help='Exact task/session ID; default all local sessions')
     parser.add_argument('--tier', choices=('auto', 'standard', 'fast'), default='auto', help='Use recorded tier or explicitly select a pricing assumption')
     parser.add_argument('--budget-usd', type=float, help='Optional user-supplied cap for the selected reporting period; not an account balance')
+    parser.add_argument('--account-spend-usd', type=float, help='Spend shown by the OpenAI Usage dashboard; requires --account-window')
+    parser.add_argument('--account-window', help='Exact dashboard window for --account-spend-usd, e.g. "last 7 days"')
     parser.add_argument('--json', action='store_true', help='Machine-readable report')
     args = parser.parse_args()
     try:
@@ -198,7 +207,8 @@ def main():
             datetime.strptime(day, '%Y-%m-%d')
         if args.budget_usd is not None and (not math.isfinite(args.budget_usd) or args.budget_usd <= 0):
             parser.error('--budget-usd must be a positive finite number')
-        result = build_report(args.home.expanduser(), day, args.timezone, args.session, args.tier, args.budget_usd)
+        result = build_report(args.home.expanduser(), day, args.timezone, args.session, args.tier, args.budget_usd,
+                              args.account_spend_usd, args.account_window)
     except (ValueError, ZoneInfoNotFoundError) as exc:
         parser.error(str(exc))
     if args.json:
@@ -214,7 +224,9 @@ def main():
             print('Actual processing tier missing: these are scenarios, not a confirmed billed amount.')
         else:
             print(f"Selected/recorded tier estimate: ${result['estimated_usd']:.4f} ({args.tier})")
-        print('Actual account charges and remaining credit: unknown (not provided by local token records).')
+        print('Local token records do not provide actual account charges or remaining credit.')
+        if result['actual_charged_usd'] is not None:
+            print(f"Account dashboard spend: ${result['actual_charged_usd']:.2f} ({result['actual_charged_window']}; {result['actual_charged_source']}).")
         if result['budget']:
             print('Reporting cap:', json.dumps(result['budget']))
         if result['warnings']:

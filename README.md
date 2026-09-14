@@ -11,6 +11,7 @@ python3 scripts/report.py --help
 python3 scripts/report.py --timezone Europe/Berlin
 python3 scripts/report.py --session TASK_ID --tier standard --json
 python3 scripts/report.py --all-time
+python3 scripts/report.py --account-spend-usd 8.29 --account-window "last 7 days"
 ```
 
 The default reads today's records in UTC. Set `--timezone` to use a different day boundary. `CODEX_HOME` or `--home` selects the Codex data directory; default `~/.codex`. Both `sessions` and `archived_sessions` are scanned. Desktop and CLI use the same reader when they share this data directory. Source client is shown in JSON. The actual desktop records have been exercised; CLI compatibility is based on the shared transcript format and still requires a real CLI session check.
@@ -18,7 +19,7 @@ The default reads today's records in UTC. Set `--timezone` to use a different da
 ## What the numbers mean
 
 - **Standard/Fast USD:** alternative list-price values of the recorded model tokens, not confirmed charges. `--tier auto` uses a recorded service tier only when available. `--tier standard` or `--tier fast` explicitly selects an assumption.
-- **Actual charged USD:** unknown. Local usage records do not establish promotional allowances, free credits, paid subscription coverage, negotiated discounts, prepaid deductions, or billing delays.
+- **Actual charged USD:** unknown from local files. Add the amount you read from the OpenAI Usage dashboard with `--account-spend-usd` and its exact filter with `--account-window`; it is retained as a separate, user-reported account total rather than being merged with a local estimate.
 - **Remaining API account budget:** unknown. An optional `--budget-usd` is a user-supplied reporting cap for the selected period, not a fetched balance. It is never inferred from Claude/Joyia settings. Remaining cap is withheld when usage coverage or tier is incomplete.
 - **Coverage:** local transcripts only. Separately billed tools, taxes, requests from other programs/devices, and missing records are excluded. Total-only imported histories are unpriced, not free. Other models are explicitly unpriced in this first version.
 

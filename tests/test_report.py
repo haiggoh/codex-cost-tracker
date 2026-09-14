@@ -91,6 +91,17 @@ class ReportTests(unittest.TestCase):
         self.assertIsNone(result['actual_charged_usd'])
         self.assertIsNone(result['account_credit_balance_usd'])
 
+    def test_dashboard_spend_is_retained_with_its_user_provided_window(self):
+        result = self.scan([event(usage(100000))], tier='standard',
+                           account_spend=8.29, account_window='last 7 days')
+        self.assertEqual(result['actual_charged_usd'], 8.29)
+        self.assertEqual(result['actual_charged_window'], 'last 7 days')
+        self.assertNotEqual(result['actual_charged_usd'], result['estimated_usd'])
+
+    def test_nonpositive_dashboard_spend_is_rejected(self):
+        with self.assertRaises(ValueError):
+            self.scan([event(usage(100000))], account_spend=-.01)
+
 
 if __name__ == '__main__':
     unittest.main()
