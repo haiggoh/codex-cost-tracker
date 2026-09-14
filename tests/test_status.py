@@ -3,6 +3,7 @@ from pathlib import Path
 import stat
 import tempfile
 import unittest
+from unittest.mock import patch
 
 
 SPEC = importlib.util.spec_from_file_location(
@@ -70,6 +71,44 @@ class StatusTests(unittest.TestCase):
         code = status.main(['--state', str(self.state), 'status', '--auth-file',
                             str(Path(self.temporary.name) / 'missing-auth.json')])
         self.assertEqual(code, 0)
+
+    def test_usage_summary_keeps_incentive_and_paid_tiers_separate(self):
+        summary = status.summarize_usage({
+            'data': [{'start_time': 1, 'end_time': 2, 'results': [
+                {'service_tier': 'data_sharing_incentive', 'model': 'gpt-5.6-terra',
+                 'input_tokens': 250, 'output_tokens': 75, 'num_model_requests': 2},
+                {'service_tier': 'default', 'model': 'gpt-5.6-terra',
+                 'input_tokens': 100, 'output_tokens': 20, 'num_model_requests': 1},
+            ]}]
+        })
+        self.assertEqual(summary['incentive']['input_tokens'], 250)
+        self.assertEqual(summary['incentive']['output_tokens'], 75)
+        self.assertEqual(summary['paid']['input_tokens'], 100)
+        self.assertEqual(summary['paid']['requests'], 1)
+
+    def test_usage_summary_rejects_malformed_payload(self):
+        with self.assertRaises(ValueError):
+            status.summarize_usage({'data': 'not a list'})
+
+    def test_sync_api_stores_daily_usage_and_costs_without_raw_response(self):
+        key = Path(self.temporary.name) / 'admin-key'
+        key.write_text('test-admin-key')
+        key.chmod(0o600)
+        responses = [
+            {'data': [{'results': [{'service_tier': 'data_sharing_incentive',
+                                    'input_tokens': 9, 'output_tokens': 3,
+                                    'num_model_requests': 1}]}]},
+            {'data': [{'results': [{'amount': {'value': 1.25, 'currency': 'usd'}}]}]},
+        ]
+        with patch.object(status, 'fetch_admin_json', side_effect=responses):
+            code = status.main(['--state', str(self.state), 'sync-api', '--key-file', str(key),
+                                '--date', '2026-09-14'])
+        self.assertEqual(code, 0)
+        stored, warnings = status.load_state(self.state)
+        self.assertEqual(warnings, [])
+        self.assertEqual(stored['api_usage']['incentive']['input_tokens'], 9)
+        self.assertEqual(stored['api_usage']['cost_usd'], 1.25)
+        self.assertNotIn('data', stored['api_usage'])
 
 
 if __name__ == '__main__':
