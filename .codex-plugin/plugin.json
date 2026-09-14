@@ -1,6 +1,6 @@
 {
   "name": "codex-cost-tracker",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Read-only Codex cost estimates with separate plan, API-credit, and daily Usage API snapshots.",
   "author": {
     "name": "Local developer"

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.1 — 2026-09-14
+
+- Document the macOS system-trust behavior used by `sync-api` on TLS-inspecting corporate networks.
+
 ## 0.3.0 — 2026-09-14
 
 - Add an on-demand, read-only OpenAI Admin API import for daily Usage by processing tier and daily Costs.

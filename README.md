@@ -1,10 +1,10 @@
 # Codex Cost Tracker
 
-Version 0.3.0. On-demand, read-only **model-token value estimates** for local Codex desktop and CLI transcripts, plus private snapshots and authoritative daily API usage for distinct ChatGPT/Codex plan and API-credit pools. It never merges their budgets.
+Version 0.3.1. On-demand, read-only **model-token value estimates** for local Codex desktop and CLI transcripts, plus private snapshots and authoritative daily API usage for distinct ChatGPT/Codex plan and API-credit pools. It never merges their budgets.
 
 ## Use
 
-Requires Python 3.9+ and the macOS system `curl`; no packages or background process. Local transcript reports use no network access. `sync-api` makes two read-only OpenAI Admin API requests.
+Requires Python 3.9+ and the macOS system `curl`; no packages or background process. Local transcript reports use no network access. `sync-api` makes two read-only OpenAI Admin API requests. It uses `curl` rather than Python HTTPS so macOS Keychain trust continues to work on corporate networks with TLS inspection.
 
 ```sh
 python3 scripts/report.py --help
