@@ -83,7 +83,7 @@ def summarize_usage(document: Dict) -> Dict:
             if not isinstance(row, dict):
                 raise ValueError('Usage API response has malformed results')
             tier = str(row.get('service_tier') or '').lower()
-            category = 'incentive' if 'data_sharing' in tier or 'incentive' in tier else 'paid'
+            category = 'incentive' if tier in ('incentivized-tier', 'data_sharing_incentive') else 'paid'
             for field, output in (('input_tokens', 'input_tokens'),
                                   ('output_tokens', 'output_tokens'),
                                   ('num_model_requests', 'requests')):
@@ -92,6 +92,18 @@ def summarize_usage(document: Dict) -> Dict:
                     raise ValueError(f'Usage API response has invalid {field}')
                 summary[category][output] += value
     return summary
+
+
+def select_api_key_id(document: Dict, name: str) -> str:
+    """Select exactly one API key ID by its user-visible name."""
+    keys = document.get('data')
+    if not isinstance(keys, list):
+        raise ValueError('Admin API key response has no data list')
+    matches = [key.get('id') for key in keys if isinstance(key, dict) and key.get('name') == name
+               and isinstance(key.get('id'), str)]
+    if len(matches) != 1:
+        raise ValueError(f'expected exactly one Admin API key named {name!r}; found {len(matches)}')
+    return matches[0]
 
 
 def summarize_costs(document: Dict) -> float:
@@ -172,8 +184,11 @@ def daily_api_line(state: Dict) -> str:
     if not isinstance(api, dict) or not isinstance(api.get('incentive'), dict):
         return 'Daily API incentive: unknown (run sync-api with an OpenAI Admin Key)'
     tier = api['incentive']
+    filter_label = api.get('api_key_name')
+    filter_text = f'; API key filter: {filter_label}' if isinstance(filter_label, str) else ''
     return ('Daily API incentive: {input_tokens} input, {output_tokens} output, {requests} requests '
-            '(authoritative API Usage; {day} UTC)').format(day=api.get('day', 'unknown'), **tier)
+            '(authoritative API Usage; {day} UTC{filter_text})').format(
+                day=api.get('day', 'unknown'), filter_text=filter_text, **tier)
 
 
 def paid_api_line(state: Dict) -> str:
@@ -184,7 +199,7 @@ def paid_api_line(state: Dict) -> str:
     line = ('Paid API usage today: {input_tokens} input, {output_tokens} output, {requests} requests '
             '(authoritative API Usage; {day} UTC; costs may lag)').format(day=api.get('day', 'unknown'), **tier)
     if isinstance(api.get('cost_usd'), (int, float)):
-        line += f"; authoritative API Costs: ${api['cost_usd']:.2f}"
+        line += f"; organization daily API Costs: ${api['cost_usd']:.2f}"
     return line
 
 
@@ -200,7 +215,7 @@ def main(argv=None) -> int:
                       help='Codex auth file; only its auth_mode field is read')
     plan = commands.add_parser('snapshot-plan', help='Record a native Codex CLI /status reading')
     plan.add_argument('--remaining-percent', required=True, type=float)
-    plan.add_argument('--reset-at', required=True, help='ISO-8601 timestamp with UTC offset')
+    plan.add_argument('--reset-at', help='Optional ISO-8601 reset timestamp with UTC offset')
     plan.add_argument('--observed-at', help='ISO-8601 timestamp with UTC offset; default current UTC')
     credit = commands.add_parser('snapshot-api-credit', help='Record a Billing-page API credit balance')
     credit.add_argument('--usd', required=True, type=float)
@@ -209,6 +224,9 @@ def main(argv=None) -> int:
     sync.add_argument('--key-file', required=True, type=Path,
                       help='Private file containing one OpenAI Admin Key')
     sync.add_argument('--date', help='UTC day to read as YYYY-MM-DD; default today')
+    selector = sync.add_mutually_exclusive_group()
+    selector.add_argument('--api-key-id', help='Optional API key ID to filter Usage only')
+    selector.add_argument('--api-key-name', help='Optional exact API key name to filter Usage only')
     arguments = list(sys.argv[1:] if argv is None else argv)
     if not arguments:
         arguments = ['status']
@@ -229,29 +247,43 @@ def main(argv=None) -> int:
         end = int((datetime.combine(selected_day, datetime.min.time(), timezone.utc) + timedelta(days=1)).timestamp())
         query = [('start_time', str(start)), ('end_time', str(end)), ('bucket_width', '1d'), ('limit', '1')]
         try:
+            key_file = args.key_file.expanduser()
+            api_key_id = args.api_key_id
+            if args.api_key_name:
+                keys_document = fetch_admin_json('https://api.openai.com/v1/organization/admin_api_keys',
+                                                 [('limit', '100')], key_file)
+                api_key_id = select_api_key_id(keys_document, args.api_key_name)
+            usage_query = list(query)
+            if api_key_id:
+                usage_query.append(('api_key_ids', api_key_id))
             usage_document = fetch_admin_json('https://api.openai.com/v1/organization/usage/completions',
-                                              query + [('group_by', 'service_tier'), ('group_by', 'model')],
-                                              args.key_file.expanduser())
+                                              usage_query + [('group_by', 'service_tier'), ('group_by', 'model')],
+                                              key_file)
             costs_document = fetch_admin_json('https://api.openai.com/v1/organization/costs', query,
-                                              args.key_file.expanduser())
+                                              key_file)
             usage = summarize_usage(usage_document)
             costs = summarize_costs(costs_document)
         except ValueError as exc:
             parser.error(str(exc))
         state['api_usage'] = dict(day=selected_day.isoformat(), observed_at=datetime.now(timezone.utc).isoformat(),
-                                  source='OpenAI organization Usage and Costs APIs', cost_usd=costs, **usage)
+                                  source='OpenAI organization Usage and Costs APIs', cost_usd=costs,
+                                  api_key_name=args.api_key_name, **usage)
         save_state(path, state)
         return 0
     observed = parse_timestamp(args.observed_at) if args.observed_at else datetime.now(timezone.utc).isoformat()
     if args.command == 'snapshot-plan':
         if not math.isfinite(args.remaining_percent) or not 0 <= args.remaining_percent <= 100:
             parser.error('--remaining-percent must be a finite number from 0 through 100')
-        try:
-            reset_at = parse_timestamp(args.reset_at)
-        except ValueError as exc:
-            parser.error(str(exc))
-        state['plan'] = {'remaining_percent': args.remaining_percent, 'reset_at': reset_at,
+        reset_at = None
+        if args.reset_at:
+            try:
+                reset_at = parse_timestamp(args.reset_at)
+            except ValueError as exc:
+                parser.error(str(exc))
+        state['plan'] = {'remaining_percent': args.remaining_percent,
                          'observed_at': observed, 'source': 'user-confirmed native CLI /status'}
+        if reset_at:
+            state['plan']['reset_at'] = reset_at
     else:
         if not math.isfinite(args.usd) or args.usd < 0:
             parser.error('--usd must be a finite non-negative number')
