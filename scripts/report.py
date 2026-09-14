@@ -54,6 +54,7 @@ def build_report(home, date=None, tz='UTC', session=None, tier='auto', budget=No
                   cost_kind='estimated model tokens; excludes separately billed tools and taxes',
                   pricing_verified=PRICING_DATE, pricing_source=PRICING_URL,
                   tier=tier, standard_usd=0.0, fast_usd=0.0, estimated_usd=0.0,
+                  actual_charged_usd=None, account_credit_balance_usd=None,
                   priced_responses=0, unpriced_responses=0, sessions=[], warnings=[], budget=None)
     seen_sessions = set()
     paths = sorted({p.resolve() for folder in ('sessions', 'archived_sessions')
@@ -142,9 +143,11 @@ def build_report(home, date=None, tz='UTC', session=None, tier='auto', budget=No
                     row['fast_usd'] += value * 2
                     effective_tier = tier if tier != 'auto' else captured_tier
                     if effective_tier in ('default', 'standard'):
-                        row['estimated_usd'] += value
+                        if row['estimated_usd'] is not None:
+                            row['estimated_usd'] += value
                     elif effective_tier in ('priority', 'fast'):
-                        row['estimated_usd'] += value * 2
+                        if row['estimated_usd'] is not None:
+                            row['estimated_usd'] += value * 2
                     else:
                         row['estimated_usd'] = None
                     row['priced_responses'] += 1
@@ -211,7 +214,7 @@ def main():
             print('Actual processing tier missing: these are scenarios, not a confirmed billed amount.')
         else:
             print(f"Selected/recorded tier estimate: ${result['estimated_usd']:.4f} ({args.tier})")
-        print('Remaining API account budget: unknown (not provided by local token records).')
+        print('Actual account charges and remaining credit: unknown (not provided by local token records).')
         if result['budget']:
             print('Reporting cap:', json.dumps(result['budget']))
         if result['warnings']:

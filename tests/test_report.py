@@ -78,6 +78,19 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(result['standard_usd'], 1.0)
         self.assertEqual(result['unpriced_responses'], 1)
 
+    def test_unknown_then_known_tier_stays_unknown_without_losing_usage(self):
+        result = self.scan([event(usage(100000)),
+                            dict(type='turn_context', payload=dict(model='gpt-6-astra', service_tier='default')),
+                            event(usage(200000), usage(100000))])
+        self.assertIsNone(result['estimated_usd'])
+        self.assertEqual(result['priced_responses'], 2)
+        self.assertEqual(result['unpriced_responses'], 0)
+
+    def test_token_value_never_claims_actual_charges_or_remaining_credit(self):
+        result = self.scan([event(usage(100000))], tier='standard')
+        self.assertIsNone(result['actual_charged_usd'])
+        self.assertIsNone(result['account_credit_balance_usd'])
+
 
 if __name__ == '__main__':
     unittest.main()
