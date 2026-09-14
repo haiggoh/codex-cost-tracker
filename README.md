@@ -1,10 +1,10 @@
 # Codex Cost Tracker
 
-Version 0.3.1. On-demand, read-only **model-token value estimates** for local Codex desktop and CLI transcripts, plus private snapshots and authoritative daily API usage for distinct ChatGPT/Codex plan and API-credit pools. It never merges their budgets.
+Version 0.4.0. On-demand, read-only **model-token value estimates** for local Codex desktop and CLI transcripts, plus private snapshots and authoritative daily API usage for distinct ChatGPT/Codex plan and API-credit pools. It never merges their budgets.
 
 ## Use
 
-Requires Python 3.9+ and the macOS system `curl`; no packages or background process. Local transcript reports use no network access. `sync-api` makes two read-only OpenAI Admin API requests. It uses `curl` rather than Python HTTPS so macOS Keychain trust continues to work on corporate networks with TLS inspection.
+Requires Python 3.9+ and the macOS system `curl`; no packages or background process. Local transcript reports use no network access. `sync-api` makes two read-only OpenAI Admin API requests, or three when resolving an API-key name. It uses `curl` rather than Python HTTPS so macOS Keychain trust continues to work on corporate networks with TLS inspection.
 
 ```sh
 python3 scripts/report.py --help
@@ -13,9 +13,9 @@ python3 scripts/report.py --session TASK_ID --tier standard --json
 python3 scripts/report.py --all-time
 python3 scripts/report.py --account-spend-usd 8.29 --account-window "last 7 days"
 python3 scripts/status.py status
-python3 scripts/status.py snapshot-plan --remaining-percent 61 --reset-at '2026-10-14T16:00:00+00:00'
+python3 scripts/status.py snapshot-plan --remaining-percent 61
 python3 scripts/status.py snapshot-api-credit --usd 50
-python3 scripts/status.py sync-api --key-file ~/.api_keys/gpt-account-service
+python3 scripts/status.py sync-api --key-file ~/.api_keys/gpt-api-admin-key-ro --api-key-name Codex-api
 ```
 
 The default reads today's records in UTC. Set `--timezone` to use a different day boundary. `CODEX_HOME` or `--home` selects the Codex data directory; default `~/.codex`. Both `sessions` and `archived_sessions` are scanned. Desktop and CLI use the same reader when they share this data directory. Source client is shown in JSON. The actual desktop records have been exercised; CLI compatibility is based on the shared transcript format and still requires a real CLI session check.
@@ -31,15 +31,17 @@ GPT-6 Astra pricing was verified on 2026-09-14: Standard per million tokens is $
 
 Sources: [model pricing](https://developers.openai.com/api/docs/models/gpt-6-astra), [cache accounting](https://developers.openai.com/api/docs/guides/prompt-caching), [prepaid billing](https://help.openai.com/en/articles/8264644-how-can-i-set-up-prepaid-billing), [complimentary-token eligibility](https://help.openai.com/en/articles/10306912-sharing-feedback-evals-and-api-data-with-openai).
 
-`scripts/status.py` reads only the `auth_mode` label from `~/.codex/auth.json`; it never reads or displays a key or ChatGPT token. Its state file defaults to `$XDG_STATE_HOME/codex-cost-tracker/status.json` (or `~/.local/state/...`) and is mode 0600. Record a native CLI `/status` percentage with `snapshot-plan`; it is a timestamped snapshot, not a continuous monitor.
+`scripts/status.py` reads only the `auth_mode` label from `~/.codex/auth.json`; it never reads or displays a key or ChatGPT token. Its state file defaults to `$XDG_STATE_HOME/codex-cost-tracker/status.json` (or `~/.local/state/...`) and is mode 0600. Record a native CLI `/status` percentage with `snapshot-plan`; add `--reset-at` only when the CLI supplies an exact reset timestamp. It is a timestamped snapshot, not a continuous monitor.
 
 ## Read daily API usage and the free incentive
 
-`sync-api` reads the OpenAI organization Usage API grouped by processing tier and model, then reads the matching daily Costs API total. The status display separately shows:
+`sync-api` reads the OpenAI organization Usage API grouped by processing tier and model, then reads the organization daily Costs API total. Use `--api-key-name Codex-api` to reproduce the Usage filtering shown in the Platform dashboard; it resolves that exact visible name through the Admin API and does not save the identifier. `--api-key-id` is available when an exact ID is already known.
+
+The status display separately shows:
 
 - **Daily API incentive:** input/output tokens and requests served on a data-sharing incentive tier.
 - **Paid API usage today:** input/output tokens and requests served on every other processing tier.
-- **Authoritative API Costs:** the API Costs total for the same UTC day. This can lag usage and is not the same thing as a prepaid-credit balance.
+- **Organization daily API Costs:** the API Costs total for the same UTC day. Costs can lag usage, apply to the organization rather than an individual API key, and are not a prepaid-credit balance.
 
 The command stores only those aggregates, their UTC day, and an observation timestamp. It does not store API responses, project IDs, model rows, the key, or its redacted form. A missing incentive row means zero eligible activity reported for that day; an unavailable request remains `unknown` and is never reported as zero.
 
@@ -49,7 +51,7 @@ Create the Admin Key in the Platform UI, place its bare value in a private local
 
 ```sh
 chmod 600 ~/.api_keys/gpt-account-service
-python3 scripts/status.py sync-api --key-file ~/.api_keys/gpt-account-service
+python3 scripts/status.py sync-api --key-file ~/.api_keys/gpt-api-admin-key-ro --api-key-name Codex-api
 python3 scripts/status.py status
 ```
 

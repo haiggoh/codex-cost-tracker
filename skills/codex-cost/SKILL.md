@@ -5,7 +5,7 @@ description: Report Codex desktop and CLI token-value estimates from native loca
 
 # Codex Cost
 
-Run the bundled `../../scripts/report.py` for transcript estimates and `../../scripts/status.py status` for separately sourced plan and API-credit snapshots. Run `../../scripts/status.py sync-api --key-file PATH` only with a user-authorized OpenAI Admin Key in a mode-0600 local file. Start with `--help` if arguments are unclear. Use the actual current task ID with `--session` for task cost; omit it for all local sessions. Use `--timezone Europe/Berlin` only when that is the user's requested/local timezone, otherwise use the appropriate IANA timezone. JSON output includes coverage details.
+Run the bundled `../../scripts/report.py` for transcript estimates and `../../scripts/status.py status` for separately sourced plan and API-credit snapshots. Run `../../scripts/status.py sync-api --key-file PATH --api-key-name NAME` only with a user-authorized OpenAI Admin Key in a mode-0600 local file. The named filter applies to Usage only; the API Costs total remains organization-wide. Start with `--help` if arguments are unclear. Use the actual current task ID with `--session` for task cost; omit it for all local sessions. Use `--timezone Europe/Berlin` only when that is the user's requested/local timezone, otherwise use the appropriate IANA timezone. JSON output includes coverage details.
 
 Report the snapshot timestamp, model-token estimate, processing-tier evidence/assumption, and missing coverage. Default to `--tier auto`; do not silently assume a tier. Unknown models, total-only imports, and missing data are unpriced, never zero cost.
 

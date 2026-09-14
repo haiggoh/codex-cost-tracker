@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.0 — 2026-09-14
+
+- Correctly recognize the `incentivized-tier` value reported by the Usage API.
+- Add an exact `--api-key-name` Usage filter so CLI totals can match a named Platform-dashboard key selection.
+- Clarify that the daily Costs result applies to the organization, because the Costs API cannot filter by API key.
+
 ## 0.3.1 — 2026-09-14
 
 - Document the macOS system-trust behavior used by `sync-api` on TLS-inspecting corporate networks.
