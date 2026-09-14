@@ -44,6 +44,25 @@ class StatusTests(unittest.TestCase):
         self.assertEqual(warnings, [])
         self.assertEqual(state['plan']['remaining_percent'], 61)
 
+    def test_dashboard_identifies_chatgpt_routing_and_unknown_incentive(self):
+        output = status.render_status(
+            {'plan': {'remaining_percent': 61.0,
+                      'source': 'user-confirmed native CLI /status'}},
+            auth_mode='chatgpt', now='2026-09-14T16:00:00+00:00')
+        self.assertIn('Monthly Codex/Work plan: 61%', output)
+        self.assertIn('Current routing: ChatGPT plan', output)
+        self.assertIn('Daily API incentive: unknown', output)
+
+    def test_unknown_auth_mode_never_exposes_auth_file_fields(self):
+        auth = Path(self.temporary.name) / 'auth.json'
+        auth.write_text('{"auth_mode":"unexpected","tokens":{"access_token":"secret"}}')
+        self.assertEqual(status.read_auth_mode(auth), 'unknown')
+
+    def test_status_command_renders_missing_snapshots_as_unknown(self):
+        code = status.main(['--state', str(self.state), 'status', '--auth-file',
+                            str(Path(self.temporary.name) / 'missing-auth.json')])
+        self.assertEqual(code, 0)
+
 
 if __name__ == '__main__':
     unittest.main()

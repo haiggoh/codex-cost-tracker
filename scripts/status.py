@@ -6,7 +6,8 @@ import json
 import math
 import os
 from pathlib import Path
-from typing import Dict, List, Tuple
+import sys
+from typing import Dict, List, Optional, Tuple
 
 
 def load_state(path: Path) -> Tuple[Dict, List[str]]:
@@ -46,11 +47,44 @@ def parse_timestamp(value: str) -> str:
     return parsed.isoformat()
 
 
-def state_path(value: str | None) -> Path:
+def state_path(value: Optional[str]) -> Path:
     if value:
         return Path(value).expanduser()
     root = Path(os.environ.get('XDG_STATE_HOME', '~/.local/state')).expanduser()
     return root / 'codex-cost-tracker' / 'status.json'
+
+
+def read_auth_mode(path: Path) -> str:
+    """Read only the non-secret authentication mode from Codex state."""
+    try:
+        value = json.loads(path.read_text())
+    except (OSError, ValueError):
+        return 'unknown'
+    mode = value.get('auth_mode') if isinstance(value, dict) else None
+    return mode if mode in ('chatgpt', 'apikey') else 'unknown'
+
+
+def render_status(state: Dict, auth_mode: str, now: str) -> str:
+    """Render pool status with clear source boundaries."""
+    route = {'chatgpt': 'ChatGPT plan', 'apikey': 'OpenAI API key'}.get(auth_mode, 'unknown')
+    plan = state.get('plan', {})
+    credit = state.get('api_credit', {})
+    if isinstance(plan, dict) and 'remaining_percent' in plan:
+        monthly = f"{plan['remaining_percent']:g}% ({plan.get('source', 'unknown source')})"
+    else:
+        monthly = 'unknown'
+    if isinstance(credit, dict) and 'usd' in credit:
+        api_credit = f"${credit['usd']:.2f} ({credit.get('source', 'unknown source')})"
+    else:
+        api_credit = 'unknown'
+    return '\n'.join((
+        f'Codex Cost Tracker status — observed {now}',
+        f'Current routing: {route}',
+        f'Monthly Codex/Work plan: {monthly}',
+        'Daily API incentive: unknown (requires an authoritative Usage API import)',
+        f'Purchased API credit: {api_credit}',
+        'Local transcript estimate: use scripts/report.py separately.',
+    ))
 
 
 def main(argv=None) -> int:
@@ -59,6 +93,10 @@ def main(argv=None) -> int:
         epilog='Environment: XDG_STATE_HOME selects the default state directory. No credentials, network calls, hooks, or background jobs are used.')
     parser.add_argument('--state', help='Private JSON state file; default $XDG_STATE_HOME/codex-cost-tracker/status.json')
     commands = parser.add_subparsers(dest='command')
+    view = commands.add_parser('status', help='Display all separately sourced pool snapshots')
+    view.add_argument('--auth-file', type=Path,
+                      default=Path(os.environ.get('CODEX_HOME', '~/.codex')).expanduser() / 'auth.json',
+                      help='Codex auth file; only its auth_mode field is read')
     plan = commands.add_parser('snapshot-plan', help='Record a native Codex CLI /status reading')
     plan.add_argument('--remaining-percent', required=True, type=float)
     plan.add_argument('--reset-at', required=True, help='ISO-8601 timestamp with UTC offset')
@@ -66,13 +104,17 @@ def main(argv=None) -> int:
     credit = commands.add_parser('snapshot-api-credit', help='Record a Billing-page API credit balance')
     credit.add_argument('--usd', required=True, type=float)
     credit.add_argument('--observed-at', help='ISO-8601 timestamp with UTC offset; default current UTC')
-    args = parser.parse_args(argv)
+    arguments = list(sys.argv[1:] if argv is None else argv)
+    if not arguments:
+        arguments = ['status']
+    args = parser.parse_args(arguments)
     path = state_path(args.state)
-    if args.command is None:
-        parser.error('choose snapshot-plan or snapshot-api-credit')
     state, warnings = load_state(path)
     if warnings:
         parser.error('; '.join(warnings))
+    if args.command == 'status':
+        print(render_status(state, read_auth_mode(args.auth_file), datetime.now(timezone.utc).isoformat()))
+        return 0
     observed = parse_timestamp(args.observed_at) if args.observed_at else datetime.now(timezone.utc).isoformat()
     if args.command == 'snapshot-plan':
         if not math.isfinite(args.remaining_percent) or not 0 <= args.remaining_percent <= 100:
@@ -90,3 +132,7 @@ def main(argv=None) -> int:
                                'source': 'user-confirmed OpenAI Billing page'}
     save_state(path, state)
     return 0
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())
