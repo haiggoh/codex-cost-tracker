@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.0 — 2026-09-14
+
+- Add an on-demand, read-only OpenAI Admin API import for daily Usage by processing tier and daily Costs.
+- Display data-sharing-incentive tokens separately from paid API token usage and delayed authoritative daily costs.
+- Document Admin Key setup, the precise Platform URL, local-secret handling, and the distinction from project service-account keys.
+
 ## 0.2.0 — 2026-09-14
 
 - Add a private, on-demand terminal status dashboard.

@@ -1,15 +1,15 @@
 {
   "name": "codex-cost-tracker",
-  "version": "0.2.0",
-  "description": "Read-only Codex desktop and CLI cost estimates with separate plan and API-credit snapshots.",
+  "version": "0.3.0",
+  "description": "Read-only Codex cost estimates with separate plan, API-credit, and daily Usage API snapshots.",
   "author": {
     "name": "Local developer"
   },
   "skills": "./skills/",
   "interface": {
     "displayName": "Codex Cost Tracker",
-    "shortDescription": "Track Codex plan and API cost snapshots separately.",
-    "longDescription": "Read native Codex transcript estimates and safely display separately sourced ChatGPT-plan and API-credit snapshots without mixing billing systems.",
+    "shortDescription": "Track Codex plan and API usage separately.",
+    "longDescription": "Read native Codex transcript estimates and optionally import daily OpenAI Admin API usage without mixing billing systems.",
     "developerName": "Local developer",
     "category": "Productivity",
     "capabilities": [],
