@@ -70,7 +70,9 @@ def render_status(state: Dict, auth_mode: str, now: str) -> str:
     plan = state.get('plan', {})
     credit = state.get('api_credit', {})
     if isinstance(plan, dict) and 'remaining_percent' in plan:
-        monthly = f"{plan['remaining_percent']:g}% ({plan.get('source', 'unknown source')})"
+        reset = plan.get('reset_at')
+        reset_text = f'; resets {reset}' if reset else ''
+        monthly = f"{plan['remaining_percent']:g}% ({plan.get('source', 'unknown source')}{reset_text})"
     else:
         monthly = 'unknown'
     if isinstance(credit, dict) and 'usd' in credit:

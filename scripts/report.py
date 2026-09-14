@@ -9,7 +9,7 @@ from pathlib import Path
 import sys
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-VERSION = '0.1.0'
+VERSION = '0.2.0'
 PRICING_DATE = '2026-09-14'
 PRICING_URL = 'https://developers.openai.com/api/docs/models/gpt-6-astra'
 # Ordinary input, cached input, cache writes, output: USD / million tokens.

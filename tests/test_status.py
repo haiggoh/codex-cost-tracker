@@ -53,6 +53,14 @@ class StatusTests(unittest.TestCase):
         self.assertIn('Current routing: ChatGPT plan', output)
         self.assertIn('Daily API incentive: unknown', output)
 
+    def test_dashboard_includes_the_plan_reset_timestamp(self):
+        output = status.render_status(
+            {'plan': {'remaining_percent': 61.0,
+                      'reset_at': '2026-10-14T16:00:00+00:00',
+                      'source': 'user-confirmed native CLI /status'}},
+            auth_mode='chatgpt', now='2026-09-14T16:00:00+00:00')
+        self.assertIn('resets 2026-10-14T16:00:00+00:00', output)
+
     def test_unknown_auth_mode_never_exposes_auth_file_fields(self):
         auth = Path(self.temporary.name) / 'auth.json'
         auth.write_text('{"auth_mode":"unexpected","tokens":{"access_token":"secret"}}')

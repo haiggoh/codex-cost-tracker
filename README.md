@@ -1,6 +1,6 @@
 # Codex Cost Tracker
 
-Version 0.1.0. On-demand, read-only **model-token value estimates** for local Codex desktop and CLI transcripts. This is separate from Claude Code, Joyia, and ChatGPT subscription billing. It never treats their budgets as this account's budget.
+Version 0.2.0. On-demand, read-only **model-token value estimates** for local Codex desktop and CLI transcripts, plus private snapshots of distinct ChatGPT/Codex plan and API-credit pools. It never merges their budgets.
 
 ## Use
 
@@ -12,6 +12,9 @@ python3 scripts/report.py --timezone Europe/Berlin
 python3 scripts/report.py --session TASK_ID --tier standard --json
 python3 scripts/report.py --all-time
 python3 scripts/report.py --account-spend-usd 8.29 --account-window "last 7 days"
+python3 scripts/status.py status
+python3 scripts/status.py snapshot-plan --remaining-percent 61 --reset-at '2026-10-14T16:00:00+00:00'
+python3 scripts/status.py snapshot-api-credit --usd 50
 ```
 
 The default reads today's records in UTC. Set `--timezone` to use a different day boundary. `CODEX_HOME` or `--home` selects the Codex data directory; default `~/.codex`. Both `sessions` and `archived_sessions` are scanned. Desktop and CLI use the same reader when they share this data directory. Source client is shown in JSON. The actual desktop records have been exercised; CLI compatibility is based on the shared transcript format and still requires a real CLI session check.
@@ -27,7 +30,9 @@ GPT-6 Astra pricing was verified on 2026-09-14: Standard per million tokens is $
 
 Sources: [model pricing](https://developers.openai.com/api/docs/models/gpt-6-astra), [cache accounting](https://developers.openai.com/api/docs/guides/prompt-caching), [prepaid billing](https://help.openai.com/en/articles/8264644-how-can-i-set-up-prepaid-billing), [complimentary-token eligibility](https://help.openai.com/en/articles/10306912-sharing-feedback-evals-and-api-data-with-openai).
 
-The reader ignores duplicate cumulative snapshots, uses prior records to establish day baselines, prices each known response separately, and flags counter resets/gaps rather than inventing missing cost. Account billing reconciliation and native installation are not implemented in this initial source package. No hook, scheduler, marketplace, or existing plugin is changed.
+`scripts/status.py` reads only the `auth_mode` label from `~/.codex/auth.json`; it never reads or displays a key or ChatGPT token. Its state file defaults to `$XDG_STATE_HOME/codex-cost-tracker/status.json` (or `~/.local/state/...`) and is mode 0600. Record a native CLI `/status` percentage with `snapshot-plan`; it is a timestamped snapshot, not a continuous monitor. The daily incentive row remains unknown until a future authoritative Usage API import is added.
+
+The reader ignores duplicate cumulative snapshots, uses prior records to establish day baselines, prices each known response separately, and flags counter resets/gaps rather than inventing missing cost. No hook, scheduler, marketplace, or existing plugin is changed.
 
 ## Validation
 
