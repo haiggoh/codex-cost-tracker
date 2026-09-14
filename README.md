@@ -1,6 +1,6 @@
 # Codex Cost Tracker
 
-Version 0.4.0. On-demand, read-only **model-token value estimates** for local Codex desktop and CLI transcripts, plus private snapshots and authoritative daily API usage for distinct ChatGPT/Codex plan and API-credit pools. It never merges their budgets.
+Version 0.5.0. On-demand, read-only **model-token value estimates** for local Codex desktop and CLI transcripts, plus private snapshots and authoritative daily API usage for distinct ChatGPT/Codex plan and API-credit pools. It never merges their budgets.
 
 ## Use
 
@@ -14,7 +14,8 @@ python3 scripts/report.py --all-time
 python3 scripts/report.py --account-spend-usd 8.29 --account-window "last 7 days"
 python3 scripts/status.py status
 python3 scripts/status.py snapshot-plan --remaining-percent 61
-python3 scripts/status.py snapshot-api-credit --usd 50
+python3 scripts/status.py snapshot-api-credit --usd 50 --costs-since YYYY-MM-DD
+python3 scripts/status.py snapshot-incentive-cap --daily-tokens YOUR_DAILY_TOKEN_ALLOWANCE
 python3 scripts/status.py sync-api --key-file ~/.api_keys/gpt-api-admin-key-ro --api-key-name Codex-api
 ```
 
@@ -44,6 +45,25 @@ The status display separately shows:
 - **Organization daily API Costs:** the API Costs total for the same UTC day. Costs can lag usage, apply to the organization rather than an individual API key, and are not a prepaid-credit balance.
 
 The command stores only those aggregates, their UTC day, and an observation timestamp. It does not store API responses, project IDs, model rows, the key, or its redacted form. A missing incentive row means zero eligible activity reported for that day; an unavailable request remains `unknown` and is never reported as zero.
+
+### Percentages and remaining balances
+
+The Usage API reports consumption, but it does not report the account's data-sharing-incentive entitlement. Record the actual daily allocation you see in the enrollment or account information before relying on a percentage:
+
+```sh
+python3 scripts/status.py snapshot-incentive-cap --daily-tokens YOUR_DAILY_TOKEN_ALLOWANCE
+```
+
+The status view then reports combined daily incentive input plus output tokens, the configured cap, and the percentage consumed. The cap is source-labelled locally, and the tracker deliberately does not substitute a generic tier allowance for it.
+
+For prepaid credit, enter the $ amount and the UTC date when that credit began covering the account's Costs. This is the baseline that makes an overall-used percentage meaningful:
+
+```sh
+python3 scripts/status.py snapshot-api-credit --usd 50 --costs-since YYYY-MM-DD
+python3 scripts/status.py sync-api --key-file ~/.api_keys/gpt-api-admin-key-ro --api-key-name Codex-api
+```
+
+After the next sync, the status shows organization Costs from that baseline onward, percentage of the recorded prepaid credit consumed, and an estimated remaining balance. A prior Cost total is never silently charged against a later credit purchase.
 
 The organization endpoints require an **Admin API key**, created by an Organization Owner at [Platform → Organization → Admin Keys](https://platform.openai.com/settings/organization/admin-keys). An ordinary project API key—including one created through the **Service account** tab at [Platform → API keys](https://platform.openai.com/api-keys)—can call models but does not have this organization Usage/Costs access. A 403 from `sync-api` therefore means use an Admin Key, not that the tracker found zero usage.
 

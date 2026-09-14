@@ -126,6 +126,22 @@ def summarize_costs(document: Dict) -> float:
     return total
 
 
+def fetch_costs_since(key_file: Path, since: date, through: date) -> float:
+    """Sum daily Costs API buckets from a purchase baseline through a UTC day."""
+    total = 0.0
+    cursor = since
+    while cursor <= through:
+        stop = min(cursor + timedelta(days=180), through + timedelta(days=1))
+        start_time = int(datetime.combine(cursor, datetime.min.time(), timezone.utc).timestamp())
+        end_time = int(datetime.combine(stop, datetime.min.time(), timezone.utc).timestamp())
+        document = fetch_admin_json('https://api.openai.com/v1/organization/costs', [
+            ('start_time', str(start_time)), ('end_time', str(end_time)),
+            ('bucket_width', '1d'), ('limit', '180')], key_file)
+        total += summarize_costs(document)
+        cursor = stop
+    return total
+
+
 def fetch_admin_json(endpoint: str, query: List[Tuple[str, str]], key_file: Path) -> Dict:
     """Make a read-only Admin API request without exposing its credential in argv."""
     if not key_file.is_file() or not key_file.read_text(encoding='utf-8').strip():
@@ -175,6 +191,7 @@ def render_status(state: Dict, auth_mode: str, now: str) -> str:
         daily_api_line(state),
         paid_api_line(state),
         f'Purchased API credit: {api_credit}',
+        credit_consumption_line(state),
         'Local transcript estimate: use scripts/report.py separately.',
     ))
 
@@ -186,9 +203,16 @@ def daily_api_line(state: Dict) -> str:
     tier = api['incentive']
     filter_label = api.get('api_key_name')
     filter_text = f'; API key filter: {filter_label}' if isinstance(filter_label, str) else ''
-    return ('Daily API incentive: {input_tokens} input, {output_tokens} output, {requests} requests '
+    line = ('Daily API incentive: {input_tokens} input, {output_tokens} output, {requests} requests '
             '(authoritative API Usage; {day} UTC{filter_text})').format(
                 day=api.get('day', 'unknown'), filter_text=filter_text, **tier)
+    cap = state.get('incentive_cap')
+    if isinstance(cap, dict) and isinstance(cap.get('daily_tokens'), int) and cap['daily_tokens'] > 0:
+        used = tier['input_tokens'] + tier['output_tokens']
+        line += f"; {used} / {cap['daily_tokens']} tokens = {used / cap['daily_tokens'] * 100:.1f}% used"
+    else:
+        line += '; cap unknown (record snapshot-incentive-cap)'
+    return line
 
 
 def paid_api_line(state: Dict) -> str:
@@ -201,6 +225,21 @@ def paid_api_line(state: Dict) -> str:
     if isinstance(api.get('cost_usd'), (int, float)):
         line += f"; organization daily API Costs: ${api['cost_usd']:.2f}"
     return line
+
+
+def credit_consumption_line(state: Dict) -> str:
+    credit = state.get('api_credit')
+    api = state.get('api_usage')
+    if not isinstance(credit, dict) or not isinstance(credit.get('usd'), (int, float)):
+        return 'Prepaid credit consumption: unknown (record snapshot-api-credit)'
+    if not isinstance(api, dict) or not isinstance(api.get('costs_since_usd'), (int, float)):
+        return 'Prepaid credit consumption: unknown (record a purchase baseline and run sync-api)'
+    spent = api['costs_since_usd']
+    purchased = credit['usd']
+    remaining = purchased - spent
+    return (f'Prepaid credit consumption: ${spent:.2f} / ${purchased:.2f} = '
+            f'{spent / purchased * 100:.1f}% used; ${remaining:.2f} estimated remaining '
+            f"(Costs since {api.get('costs_since', 'unknown')} UTC)")
 
 
 def main(argv=None) -> int:
@@ -219,7 +258,12 @@ def main(argv=None) -> int:
     plan.add_argument('--observed-at', help='ISO-8601 timestamp with UTC offset; default current UTC')
     credit = commands.add_parser('snapshot-api-credit', help='Record a Billing-page API credit balance')
     credit.add_argument('--usd', required=True, type=float)
+    credit.add_argument('--costs-since', help='UTC purchase-baseline day as YYYY-MM-DD')
     credit.add_argument('--observed-at', help='ISO-8601 timestamp with UTC offset; default current UTC')
+    incentive = commands.add_parser('snapshot-incentive-cap',
+                                    help='Record the available daily data-sharing incentive cap')
+    incentive.add_argument('--daily-tokens', required=True, type=int)
+    incentive.add_argument('--observed-at', help='ISO-8601 timestamp with UTC offset; default current UTC')
     sync = commands.add_parser('sync-api', help='Read daily Usage and Costs with an OpenAI Admin Key')
     sync.add_argument('--key-file', required=True, type=Path,
                       help='Private file containing one OpenAI Admin Key')
@@ -263,11 +307,20 @@ def main(argv=None) -> int:
                                               key_file)
             usage = summarize_usage(usage_document)
             costs = summarize_costs(costs_document)
+            credit = state.get('api_credit')
+            costs_since = None
+            cumulative_costs = None
+            if isinstance(credit, dict) and isinstance(credit.get('costs_since'), str):
+                costs_since = date.fromisoformat(credit['costs_since'])
+                cumulative_costs = fetch_costs_since(key_file, costs_since, selected_day)
         except ValueError as exc:
             parser.error(str(exc))
         state['api_usage'] = dict(day=selected_day.isoformat(), observed_at=datetime.now(timezone.utc).isoformat(),
                                   source='OpenAI organization Usage and Costs APIs', cost_usd=costs,
                                   api_key_name=args.api_key_name, **usage)
+        if costs_since:
+            state['api_usage']['costs_since'] = costs_since.isoformat()
+            state['api_usage']['costs_since_usd'] = cumulative_costs
         save_state(path, state)
         return 0
     observed = parse_timestamp(args.observed_at) if args.observed_at else datetime.now(timezone.utc).isoformat()
@@ -284,11 +337,21 @@ def main(argv=None) -> int:
                          'observed_at': observed, 'source': 'user-confirmed native CLI /status'}
         if reset_at:
             state['plan']['reset_at'] = reset_at
-    else:
+    elif args.command == 'snapshot-incentive-cap':
+        if args.daily_tokens <= 0:
+            parser.error('--daily-tokens must be a positive integer')
+        state['incentive_cap'] = {'daily_tokens': args.daily_tokens, 'observed_at': observed,
+                                  'source': 'user-confirmed available daily incentive cap'}
+    elif args.command == 'snapshot-api-credit':
         if not math.isfinite(args.usd) or args.usd < 0:
             parser.error('--usd must be a finite non-negative number')
         state['api_credit'] = {'usd': args.usd, 'observed_at': observed,
                                'source': 'user-confirmed OpenAI Billing page'}
+        if args.costs_since:
+            try:
+                state['api_credit']['costs_since'] = date.fromisoformat(args.costs_since).isoformat()
+            except ValueError:
+                parser.error('--costs-since must be YYYY-MM-DD')
     save_state(path, state)
     return 0
 
