@@ -1,18 +1,18 @@
 {
   "name": "codex-cost-tracker",
-  "version": "0.1.0",
-  "description": "Read-only Codex desktop and CLI token-value estimates, separate from actual API charges and credit balances.",
+  "version": "0.2.0",
+  "description": "Read-only Codex desktop and CLI cost estimates with separate plan and API-credit snapshots.",
   "author": {
     "name": "Local developer"
   },
   "skills": "./skills/",
   "interface": {
     "displayName": "Codex Cost Tracker",
-    "shortDescription": "Estimate Codex token costs with explicit billing uncertainty.",
-    "longDescription": "Read native Codex usage records for task and daily token-value estimates. Show incomplete coverage and unknown budgets without mixing in Claude Code or Joyia billing.",
+    "shortDescription": "Track Codex plan and API cost snapshots separately.",
+    "longDescription": "Read native Codex transcript estimates and safely display separately sourced ChatGPT-plan and API-credit snapshots without mixing billing systems.",
     "developerName": "Local developer",
     "category": "Productivity",
     "capabilities": [],
-    "defaultPrompt": "Report this task's estimated token value and today's local Codex usage. Separate estimates from actual charges and account credits."
+    "defaultPrompt": "Show my Codex status, including the active authentication route and any recorded plan or API-credit snapshots."
   }
 }
