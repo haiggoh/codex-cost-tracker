@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.0 — 2026-09-14
+
+- Add source-labelled daily-incentive caps and a live percentage-used display.
+- Add prepaid-credit purchase baselines, cumulative organization Costs, percentage consumed, and estimated remaining credit.
+- Retrieve Cost history in bounded 180-day daily windows rather than assuming a one-day Cost value is a lifetime balance.
+
 ## 0.4.0 — 2026-09-14
 
 - Correctly recognize the `incentivized-tier` value reported by the Usage API.

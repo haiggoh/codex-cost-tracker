@@ -1,4 +1,5 @@
 import importlib.util
+from datetime import date, timedelta
 from pathlib import Path
 import stat
 import tempfile
@@ -121,6 +122,45 @@ class StatusTests(unittest.TestCase):
             'cost_usd': 1.25,
         }}, auth_mode='apikey', now='2026-09-14T16:00:00+00:00')
         self.assertIn('API key filter: Codex-api', output)
+
+    def test_dashboard_shows_incentive_cap_percentage(self):
+        output = status.render_status({'incentive_cap': {'daily_tokens': 20}, 'api_usage': {
+            'day': '2026-09-14',
+            'incentive': {'input_tokens': 10, 'output_tokens': 5, 'requests': 1},
+            'paid': {'input_tokens': 0, 'output_tokens': 0, 'requests': 0},
+        }}, auth_mode='apikey', now='2026-09-14T16:00:00+00:00')
+        self.assertIn('15 / 20 tokens = 75.0% used', output)
+
+    def test_dashboard_shows_credit_consumption_since_purchase_baseline(self):
+        output = status.render_status({'api_credit': {'usd': 50, 'costs_since': '2026-09-01'},
+                                       'api_usage': {'costs_since_usd': 12.5,
+                                                     'costs_since': '2026-09-01'}},
+                                      auth_mode='apikey', now='2026-09-14T16:00:00+00:00')
+        self.assertIn('$12.50 / $50.00 = 25.0% used', output)
+        self.assertIn('$37.50 estimated remaining', output)
+
+    def test_credit_snapshot_records_a_costs_baseline_date(self):
+        code = status.main(['--state', str(self.state), 'snapshot-api-credit', '--usd', '50',
+                            '--costs-since', '2026-09-01'])
+        self.assertEqual(code, 0)
+        stored, warnings = status.load_state(self.state)
+        self.assertEqual(warnings, [])
+        self.assertEqual(stored['api_credit']['costs_since'], '2026-09-01')
+
+    def test_incentive_cap_snapshot_records_available_daily_tokens(self):
+        code = status.main(['--state', str(self.state), 'snapshot-incentive-cap', '--daily-tokens', '100'])
+        self.assertEqual(code, 0)
+        stored, warnings = status.load_state(self.state)
+        self.assertEqual(warnings, [])
+        self.assertEqual(stored['incentive_cap']['daily_tokens'], 100)
+
+    def test_cost_history_requests_multiple_180_day_windows(self):
+        document = {'data': [{'results': [{'amount': {'value': 2.0, 'currency': 'usd'}}]}]}
+        with patch.object(status, 'fetch_admin_json', return_value=document) as fetch:
+            total = status.fetch_costs_since(Path('unused'), date(2026, 1, 1),
+                                             date(2026, 1, 1) + timedelta(days=180))
+        self.assertEqual(total, 4.0)
+        self.assertEqual(fetch.call_count, 2)
 
     def test_sync_api_stores_daily_usage_and_costs_without_raw_response(self):
         key = Path(self.temporary.name) / 'admin-key'
