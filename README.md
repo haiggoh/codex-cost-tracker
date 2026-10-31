@@ -1,6 +1,8 @@
-# Codex Cost Tracker
+# 💸 Codex Cost Tracker
 
-Version 0.5.0. On-demand, read-only **model-token value estimates** for local Codex desktop and CLI transcripts, plus private snapshots and authoritative daily API usage for distinct ChatGPT/Codex plan and API-credit pools. It never merges their budgets.
+This skill shares 💸 with cost-tracker by design — both are cost axes, different runtimes, no collision.
+
+Version 0.5.1. On-demand, read-only **model-token value estimates** for local Codex desktop and CLI transcripts, plus private snapshots and authoritative daily API usage for distinct ChatGPT/Codex plan and API-credit pools. It never merges their budgets.
 
 ## Use
 

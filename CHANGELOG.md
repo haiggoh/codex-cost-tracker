@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.1 — 2026-10-31
+
+### Changed — credit-moment mark 💸 (emoji branding rollout, Task 17)
+
+- README h1 is now `# 💸 Codex Cost Tracker` with a note that 💸 is shared with
+  cost-tracker by design (different runtimes, no collision); the SKILL.md gained the
+  standard `## Branding (💸)` invocation section (Codex-side attribution: lead the first
+  substantive reply with `💸 codex-cost-tracker:`); .codex-plugin description carries 💸.
+  Pinned exactly by tests/test_branding.py. Version 0.5.0 → 0.5.1.
+
 ## 0.5.0 — 2026-09-14
 
 - Add source-labelled daily-incentive caps and a live percentage-used display.
